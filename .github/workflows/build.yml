@@ -1,62 +1,83 @@
 name: Build APK
-
 on: [push, workflow_dispatch]
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
+    - uses: actions/checkout@v4
+    
     - name: Setup Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
         
-    - name: Install dependencies
+    - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y \
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
           python3-pip \
           git \
-          openjdk-11-jdk \
           zip \
-          unzip
+          unzip \
+          libncurses5 \
+          openjdk-11-jdk \
+          zlib1g-dev
         
-    - name: Install Buildozer
+    - name: Install Python dependencies
       run: |
-        pip3 install --upgrade pip
-        pip3 install buildozer
-        pip3 install cython==0.29.33
+        python3 -m pip install --upgrade pip wheel setuptools
+        python3 -m pip install cython==0.29.33
+        python3 -m pip install buildozer
         
-    - name: Create buildozer.spec
+    - name: Create minimal buildozer.spec
       run: |
-        echo '[app]
+        cat > buildozer.spec << 'EOF'
+[app]
 title = SINUX OS
 package.name = sinux
 package.domain = org.simontech
 source.dir = .
-source.include_exts = py,png,jpg,kv,atlas
-version = 1.0
+version = 1.0.0
 requirements = python3
 orientation = portrait
-fullscreen = 0
-android.permissions = INTERNET' > buildozer.spec
+android.permissions = INTERNET
+android.api = 33
+android.ndk = 23b
+android.sdk = 33
+android.minapi = 21
+android.gradle_dependencies = 
+p4a.branch = develop
+EOF
         
-    - name: Build Android APK
+    - name: Build with retry
       run: |
-        buildozer -v android debug
+        echo "Starting APK build..."
+        for i in {1..3}; do
+          echo "Attempt $i/3"
+          if buildozer -v android debug; then
+            echo "Build successful!"
+            break
+          else
+            echo "Build attempt $i failed, retrying..."
+            sleep 10
+          fi
+        done
         
-    - name: List built files
-      run: |
-        ls -la bin/ || echo "No bin directory yet"
-        
-    - name: Upload APK
+    - name: Upload APK artifact
       if: success()
       uses: actions/upload-artifact@v4
       with:
         name: sinux-apk
         path: bin/*.apk
-        if-no-files-found: warn
+        retention-days: 7
+        
+    - name: Upload build logs
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-logs
+        path: .buildozer/
+        retention-days: 7
