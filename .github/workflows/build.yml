@@ -20,16 +20,27 @@ jobs:
           echo 'requirements = python3' >> buildozer.spec
           echo 'android.permissions = INTERNET' >> buildozer.spec
           
-      - name: Build with debug
+      - name: Build APK
         run: |
-          echo "=== STARTING BUILD ==="
-          buildozer -v android debug 2>&1 | tail -100
-          echo "=== BUILD FINISHED ==="
-          echo "Checking for APK..."
-          ls -la bin/ 2>/dev/null || echo "No bin directory"
+          buildozer android debug
           
-      - uses: actions/upload-artifact@v4
-        if: success()
+      - name: Find APK
+        run: |
+          echo "=== SEARCHING FOR APK ==="
+          find . -name "*.apk" -type f 2>/dev/null
+          echo "=== CURRENT DIRECTORY ==="
+          ls -la
+          echo "=== BIN FOLDER ==="
+          ls -la bin/ 2>/dev/null || echo "No bin folder"
+          echo "=== .buildozer FOLDER ==="
+          ls -la .buildozer/android/app 2>/dev/null || echo "No .buildozer folder"
+          
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
-          name: apk
-          path: bin/*.apk
+          name: sinux-apk
+          path: |
+            bin/*.apk
+            .buildozer/android/app/build/outputs/apk/debug/*.apk
+            *.apk
+          if-no-files-found: warn
