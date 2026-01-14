@@ -17,30 +17,17 @@ jobs:
           echo '[app]' > buildozer.spec
           echo 'title = SINUX OS' >> buildozer.spec
           echo 'package.name = sinux' >> buildozer.spec
+          echo 'package.domain = org.test' >> buildozer.spec
+          echo 'source.dir = .' >> buildozer.spec
+          echo 'version = 1.0' >> buildozer.spec
           echo 'requirements = python3' >> buildozer.spec
           echo 'android.permissions = INTERNET' >> buildozer.spec
           
       - name: Build APK
-        run: |
-          buildozer android debug
-          
-      - name: Find APK
-        run: |
-          echo "=== SEARCHING FOR APK ==="
-          find . -name "*.apk" -type f 2>/dev/null
-          echo "=== CURRENT DIRECTORY ==="
-          ls -la
-          echo "=== BIN FOLDER ==="
-          ls -la bin/ 2>/dev/null || echo "No bin folder"
-          echo "=== .buildozer FOLDER ==="
-          ls -la .buildozer/android/app 2>/dev/null || echo "No .buildozer folder"
+        run: buildozer android debug
           
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: sinux-apk
-          path: |
-            bin/*.apk
-            .buildozer/android/app/build/outputs/apk/debug/*.apk
-            *.apk
-          if-no-files-found: warn
+          path: "**/*.apk"
