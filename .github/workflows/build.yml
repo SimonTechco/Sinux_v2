@@ -6,33 +6,40 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      # 1. Get your code
       - uses: actions/checkout@v4
       
-      # 2. Install what you need
-      - name: Install tools
+      - name: Install everything
         run: |
           sudo apt update
-          sudo apt install -y python3-pip openjdk-11-jdk
-          pip3 install buildozer
+          sudo apt install -y python3-pip openjdk-8-jdk
+          pip3 install buildozer cython
           
-      # 3. Create config file
-      - name: Make buildozer.spec
+      - name: Create full buildozer.spec
         run: |
-          echo '[app]' > buildozer.spec
-          echo 'title = SINUX OS' >> buildozer.spec
-          echo 'package.name = sinux' >> buildozer.spec
-          echo 'source.dir = .' >> buildozer.spec
-          echo 'version = 1.0' >> buildozer.spec
-          echo 'requirements = python3' >> buildozer.spec
-          echo 'android.permissions = INTERNET' >> buildozer.spec
+          cat > buildozer.spec << 'EOF'
+[app]
+title = SINUX OS
+package.name = sinux
+package.domain = org.test
+source.dir = .
+version = 1.0
+requirements = python3
+orientation = portrait
+fullscreen = 0
+android.permissions = INTERNET
+android.api = 33
+android.ndk = 23b
+EOF
           
-      # 4. Build the APK
-      - name: Build APK
-        run: buildozer android debug
+      - name: Debug build
+        run: |
+          echo "=== STARTING BUILD ==="
+          buildozer -v android debug 2>&1 | tail -100
+          echo "=== CHECKING RESULTS ==="
+          ls -la .buildozer/ 2>/dev/null || echo "No .buildozer dir"
+          find . -name "*.apk" 2>/dev/null || echo "No APK found"
           
-      # 5. Upload APK
-      - name: Upload APK
+      - name: Upload if exists
         uses: actions/upload-artifact@v4
         with:
           name: sinux-apk
