@@ -1,5 +1,6 @@
-name: Build APK
-on: [push, workflow_dispatch]
+name: Mobile Build
+on: 
+  workflow_dispatch:  # Manual trigger only
 
 jobs:
   build:
@@ -8,34 +9,27 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Restore Android cache
+    - name: Use cached Android
       uses: actions/cache@v3
+      id: cache
       with:
-        path: |
-          ~/.buildozer
-          ~/.android
-          ~/.gradle
-        key: ${{ runner.os }}-android-${{ hashFiles('buildozer.spec') }}
-        restore-keys: |
-          ${{ runner.os }}-android-
-    
-    - name: Setup minimal tools
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y python3-pip openjdk-8-jdk
-        pip3 install buildozer cython
+        path: ~/.buildozer
+        key: buildozer-cache
         
-    - name: Build
+    - name: Build if cache exists
+      if: steps.cache.outputs.cache-hit == 'true'
       run: |
-        echo '[app]
-title = SINUX
-package.name = sinux
-requirements = python3' > buildozer.spec
-        
-        # Build - will use cached Android tools
+        pip3 install buildozer
         buildozer android debug
         
+    - name: Skip if no cache (save data)
+      if: steps.cache.outputs.cache-hit != 'true'
+      run: |
+        echo "No Android cache found. Enable Wi-Fi for first build."
+        echo "First build downloads 500MB+ (Android SDK/NDK)"
+        
     - uses: actions/upload-artifact@v4
+      if: success()
       with:
         name: apk
         path: bin/*.apk
