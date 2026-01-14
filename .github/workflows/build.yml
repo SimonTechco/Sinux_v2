@@ -1,200 +1,66 @@
-name: 🏗️ Build SINUX APK
-on: 
-  push:
-    branches: [ main ]
-  workflow_dispatch:
-  schedule:
-    - cron: '0 0 * * 0'  # Weekly build
+name: Build SINUX APK
+on: [push, workflow_dispatch]
 
 jobs:
-  build-android-apk:
-    name: 🐍 Python → 🤖 Android APK
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-    
-    strategy:
-      matrix:
-        python-version: ['3.9']
+    timeout-minutes: 60
     
     steps:
     # 1. CHECKOUT
     - name: 📥 Checkout Code
       uses: actions/checkout@v4
-      with:
-        fetch-depth: 1
     
-    # 2. SETUP PYTHON
-    - name: 🐍 Setup Python ${{ matrix.python-version }}
+    # 2. SETUP PYTHON (SIMPLIFIED - NO CACHE)
+    - name: 🐍 Setup Python 3.9
       uses: actions/setup-python@v4
       with:
-        python-version: ${{ matrix.python-version }}
-        cache: 'pip'
+        python-version: '3.9'
+        # REMOVED: cache: 'pip' - No requirements.txt needed
     
-    # 3. INSTALL SYSTEM DEPS
-    - name: ⚙️ Install System Dependencies
+    # 3. INSTALL DEPENDENCIES
+    - name: ⚙️ Install Dependencies
       run: |
-        sudo apt-get update -y
-        sudo apt-get install -y --no-install-recommends \
+        sudo apt-get update
+        sudo apt-get install -y \
           python3-pip \
           python3-dev \
-          git \
-          wget \
-          curl \
-          unzip \
-          zip \
           openjdk-11-jdk \
-          build-essential \
-          ccache \
-          libffi-dev \
-          libssl-dev \
-          libxml2-dev \
-          libxslt1-dev \
-          libjpeg-dev \
-          zlib1g-dev \
-          libsdl2-dev \
-          libsdl2-image-dev \
-          libsdl2-mixer-dev \
-          libsdl2-ttf-dev
-      timeout-minutes: 5
-    
-    # 4. INSTALL PYTHON DEPS
-    - name: 📦 Install Python Dependencies
+          zip \
+          unzip \
+          git
+        
+    # 4. INSTALL BUILDOZER
+    - name: 📦 Install Buildozer
       run: |
-        python -m pip install --upgrade pip wheel setuptools
-        python -m pip install cython==0.29.33 virtualenv
-        python -m pip install buildozer
+        pip3 install --upgrade pip
+        pip3 install buildozer
+        pip3 install cython==0.29.33
     
-    # 5. CREATE buildozer.spec (SIMPLIFIED - NO HEREDOC)
-    - name: ⚙️ Create Build Configuration
+    # 5. CREATE BUILDOZER.SPEC
+    - name: ⚙️ Create Config
       run: |
         echo '[app]' > buildozer.spec
         echo 'title = SINUX OS' >> buildozer.spec
         echo 'package.name = sinux' >> buildozer.spec
-        echo 'package.domain = org.simontech' >> buildozer.spec
+        echo 'package.domain = org.test' >> buildozer.spec
         echo 'source.dir = .' >> buildozer.spec
-        echo 'source.include_exts = py,png,jpg,kv,atlas' >> buildozer.spec
-        echo 'version = 2.0.0' >> buildozer.spec
+        echo 'version = 1.0' >> buildozer.spec
         echo 'requirements = python3' >> buildozer.spec
         echo 'orientation = portrait' >> buildozer.spec
-        echo 'fullscreen = 0' >> buildozer.spec
-        echo 'android.api = 33' >> buildozer.spec
-        echo 'android.minapi = 21' >> buildozer.spec
-        echo 'android.ndk = 23b' >> buildozer.spec
-        echo 'android.sdk = 33' >> buildozer.spec
         echo 'android.permissions = INTERNET' >> buildozer.spec
-        echo 'android.arch = arm64-v8a,armeabi-v7a' >> buildozer.spec
-        echo 'p4a.branch = develop' >> buildozer.spec
     
-    # 6. PREPARE ANDROID SDK (PRE-DOWNLOAD)
-    - name: 🤖 Prepare Android Environment
+    # 6. BUILD APK
+    - name: 🏗️ Build APK
       run: |
-        mkdir -p ~/.android
-        touch ~/.android/repositories.cfg
-        
-        # Accept Android licenses
-        yes | $HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager --licenses 2>/dev/null || true
-      timeout-minutes: 10
+        echo "Starting build..."
+        buildozer android debug
+      timeout-minutes: 45
     
-    # 7. BUILD APK (WITH SMART RETRY)
-    - name: 🏗️ Build Android APK
-      run: |
-        set -e  # Exit on error
-        
-        echo "🚀 Starting APK build process..."
-        echo "📱 Target: Android API 33"
-        echo "🐍 Python: $(python --version)"
-        echo "🛠️ Buildozer: $(buildozer --version 2>/dev/null || echo 'version check failed')"
-        
-        MAX_RETRIES=3
-        RETRY_COUNT=0
-        
-        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-          echo ""
-          echo "🔄 Build attempt $((RETRY_COUNT + 1))/$MAX_RETRIES"
-          
-          if buildozer -v android debug 2>&1 | tee build.log; then
-            echo ""
-            echo "✅ BUILD SUCCESSFUL!"
-            
-            # Check if APK was created
-            if ls bin/*.apk 1> /dev/null 2>&1; then
-              APK_FILE=$(ls bin/*.apk | head -1)
-              APK_SIZE=$(du -h "$APK_FILE" | cut -f1)
-              echo "📦 APK Generated: $APK_FILE"
-              echo "📊 APK Size: $APK_SIZE"
-              
-              # Display APK info
-              echo "📱 APK Info:"
-              $HOME/.buildozer/android/platform/android-sdk/build-tools/*/aapt dump badging "$APK_FILE" | grep -E "package:|launchable-activity:" | head -2
-              
-              break
-            else
-              echo "⚠️ Build succeeded but no APK found in bin/"
-              ls -la bin/ 2>/dev/null || echo "bin/ directory doesn't exist"
-            fi
-            break
-          else
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-            echo "❌ Build failed (Attempt $RETRY_COUNT/$MAX_RETRIES)"
-            
-            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-              echo "⏳ Waiting 30 seconds before retry..."
-              sleep 30
-              
-              # Clean partial build
-              echo "🧹 Cleaning partial build..."
-              buildozer android clean 2>/dev/null || true
-            else
-              echo "💥 All build attempts failed"
-              echo "📋 Last 50 lines of build log:"
-              tail -50 build.log
-              exit 1
-            fi
-          fi
-        done
-      timeout-minutes: 60
-    
-    # 8. UPLOAD APK ARTIFACT
-    - name: 📤 Upload APK Artifact
+    # 7. UPLOAD APK
+    - name: 📤 Upload APK
       if: success()
       uses: actions/upload-artifact@v4
       with:
-        name: sinux-android-apk
+        name: sinux-apk
         path: bin/*.apk
-        retention-days: 30
-        if-no-files-found: error
-        overwrite: true
-    
-    # 9. UPLOAD BUILD LOGS (ON FAILURE)
-    - name: 📋 Upload Build Logs (Debug)
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: build-debug-logs
-        path: |
-          build.log
-          .buildozer/
-        retention-days: 7
-    
-    # 10. SUCCESS NOTIFICATION
-    - name: 🎉 Display Success Info
-      if: success()
-      run: |
-        echo ""
-        echo "========================================="
-        echo "🎊 SINUX APK BUILT SUCCESSFULLY! 🎊"
-        echo "========================================="
-        echo ""
-        echo "📱 APK is available in the Artifacts section"
-        echo "📦 Download: sinux-android-apk"
-        echo ""
-        echo "Next steps:"
-        echo "1. Go to Repository → Actions"
-        echo "2. Click latest workflow run"
-        echo "3. Download from Artifacts section"
-        echo "4. Install on Android device"
-        echo ""
-        echo "🔧 Built with: GitHub Actions + Buildozer"
-        echo "🐍 Python ${{ matrix.python-version }}"
-        echo "🤖 Android API 33"
-        echo "========================================="
