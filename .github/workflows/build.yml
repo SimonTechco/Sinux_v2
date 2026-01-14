@@ -1,50 +1,38 @@
 name: Build APK
 on: [push]
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 90  # Increased timeout
     
     steps:
+      # 1. Get your code
       - uses: actions/checkout@v4
       
+      # 2. Install what you need
       - name: Install tools
         run: |
           sudo apt update
-          sudo apt install -y python3-pip openjdk-11-jdk wget unzip
-          pip3 install buildozer cython
+          sudo apt install -y python3-pip openjdk-11-jdk
+          pip3 install buildozer
           
-      - name: Create config
+      # 3. Create config file
+      - name: Make buildozer.spec
         run: |
           echo '[app]' > buildozer.spec
           echo 'title = SINUX OS' >> buildozer.spec
           echo 'package.name = sinux' >> buildozer.spec
-          echo 'package.domain = org.test' >> buildozer.spec
           echo 'source.dir = .' >> buildozer.spec
           echo 'version = 1.0' >> buildozer.spec
-          echo 'requirements = python3,kivy' >> buildozer.spec
+          echo 'requirements = python3' >> buildozer.spec
           echo 'android.permissions = INTERNET' >> buildozer.spec
-          echo 'android.sdk = 33' >> buildozer.spec
-          echo 'android.ndk = 25b' >> buildozer.spec
           
-      - name: Build with retry
-        run: |
-          echo "=== BUILD ATTEMPT 1 ==="
-          timeout 3000 buildozer android debug || echo "Attempt 1 failed"
-          sleep 10
-          echo "=== BUILD ATTEMPT 2 ==="
-          timeout 3000 buildozer android debug || echo "Attempt 2 failed"
-          sleep 10
-          echo "=== BUILD ATTEMPT 3 ==="
-          timeout 3000 buildozer android debug || echo "All attempts failed"
+      # 4. Build the APK
+      - name: Build APK
+        run: buildozer android debug
           
-      - name: Check for APK
-        run: |
-          find . -name "*.apk" -type f | head -5
-          ls -la bin/ 2>/dev/null || echo "No bin directory"
-          
+      # 5. Upload APK
       - name: Upload APK
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: sinux-apk
