@@ -1,25 +1,15 @@
-name: Build APK
-on: [push]
+name: Build
+on: push
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Install tools
-        run: |
-          sudo apt update
-          sudo apt install -y python3-pip
-          pip3 install buildozer
-      - name: Create config
-        run: |
-          echo '[app]' > buildozer.spec
-          echo 'title = SINUX' >> buildozer.spec
-          echo 'package.name = sinux' >> buildozer.spec
-          echo 'requirements = python3' >> buildozer.spec
-      - name: Build APK
-        run: buildozer android debug
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: sinux-apk
-          path: bin/*.apk
+    - uses: actions/checkout@v4
+    - run: sudo apt update && sudo apt install -y python3-pip openjdk-11-jdk
+    - run: pip3 install buildozer cython
+    - run: echo $'[app]\ntitle=SINUX\npackage.name=sinux\nrequirements=python3' > buildozer.spec
+    - run: buildozer android debug
+    - uses: actions/upload-artifact@v4
+      with:
+        name: apk
+        path: bin/*.apk
