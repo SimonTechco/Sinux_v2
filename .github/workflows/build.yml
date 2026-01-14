@@ -1,0 +1,27 @@
+name: Build SINUX APK
+on: [push, workflow_dispatch]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    - run: |
+        sudo apt update
+        sudo apt install -y python3-pip openjdk-8-jdk
+        pip3 install buildozer
+        echo '[app]
+        title = SINUX OS
+        package.name = sinux
+        package.domain = org.simontech
+        source.dir = .
+        version = 2.0
+        requirements = python3
+        android.permissions = INTERNET' > buildozer.spec
+        buildozer android debug
+    - uses: actions/upload-artifact@v3
+      with:
+        name: apk
+        path: bin/*.apk
