@@ -1,8 +1,62 @@
 name: Build APK
-on: [push]
+
+on: [push, workflow_dispatch]
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    
     steps:
-      - uses: actions/checkout@v4
-      - run: echo "Hello from GitHub Actions"
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          python3-pip \
+          git \
+          openjdk-11-jdk \
+          zip \
+          unzip
+        
+    - name: Install Buildozer
+      run: |
+        pip3 install --upgrade pip
+        pip3 install buildozer
+        pip3 install cython==0.29.33
+        
+    - name: Create buildozer.spec
+      run: |
+        echo '[app]
+title = SINUX OS
+package.name = sinux
+package.domain = org.simontech
+source.dir = .
+source.include_exts = py,png,jpg,kv,atlas
+version = 1.0
+requirements = python3
+orientation = portrait
+fullscreen = 0
+android.permissions = INTERNET' > buildozer.spec
+        
+    - name: Build Android APK
+      run: |
+        buildozer -v android debug
+        
+    - name: List built files
+      run: |
+        ls -la bin/ || echo "No bin directory yet"
+        
+    - name: Upload APK
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: sinux-apk
+        path: bin/*.apk
+        if-no-files-found: warn
